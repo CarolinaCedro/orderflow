@@ -1,5 +1,6 @@
 * Java 17
 * KAFKA
 * Micro-services
-* Spring Boot/cache
+* Spring Boot/Cache
 * Mongo-db
+* Docker
