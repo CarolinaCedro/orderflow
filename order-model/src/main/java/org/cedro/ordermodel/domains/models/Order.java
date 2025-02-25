@@ -1,4 +1,4 @@
-package org.cedro.ordermodel.models;
+package org.cedro.ordermodel.domains.models;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
