@@ -9,10 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.cedro</groupId>
-	<artifactId>order-rest-service</artifactId>
+	<artifactId>order-exception</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>order-rest-service</name>
-	<description>order-rest-service</description>
+	<name>order-exception</name>
+	<description>order-exception</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -50,14 +50,6 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-mongodb</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
 	</dependencies>
 
