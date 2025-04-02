@@ -5,6 +5,7 @@ import org.cedro.orderservice.service.OrderService;
 import org.cedro.orderutils.feign.viacep.record.Endereco;
 import org.cedro.orderutils.feign.viacep.service.ViaCep;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -21,6 +22,9 @@ public class OrdemController {
     private ApplicationEventPublisher publisher;
 
     private final ViaCep viaCep;
+
+    @Value("${custom.message}")
+    private String mensagemTeste;
 
 
     private final OrderService orderService;
@@ -60,6 +64,11 @@ public class OrdemController {
         return ResponseEntity.ok("Evento OrderCreatedEvent publicado com sucesso!");
     }
 
+
+    @GetMapping("/config-server-ping")
+    public String getMensagemTeste() {
+        return mensagemTeste;
+    }
 
 
 }
