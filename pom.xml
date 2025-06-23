@@ -48,6 +48,7 @@
             <artifactId>order-security-server</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
+
         <dependency>
             <groupId>org.cedro</groupId>
             <artifactId>notification-service</artifactId>

@@ -4,7 +4,9 @@
 * Spring Boot/Cache
 * Mongo-db
 * Docker
+* Feign client
 * Gitflow
+
 
 
 ### 1. Inventory Service (Serviço de Estoque)
