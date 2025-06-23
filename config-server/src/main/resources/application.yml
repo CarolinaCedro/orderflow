@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: config-server
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://github.com/CarolinaCedro/orderflow-config
+          search-paths: config
+          clone-on-start: true
+          default-label: master
+
+server:
+  port: 8888
+
