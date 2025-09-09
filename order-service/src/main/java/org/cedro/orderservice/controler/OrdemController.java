@@ -1,7 +1,13 @@
 package org.cedro.orderservice.controler;
 
+import com.cedro.orderrestservice.rest.controller.AbstractControllerJpa;
+import com.cedro.orderrestservice.rest.service.impl.AbstractServiceJpa;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.cedro.ordermodel.domains.models.Order;
 import org.cedro.orderservice.events.OrderCreatedEvent;
 import org.cedro.orderservice.service.OrderService;
+import org.cedro.orderservice.service.impl.OrderServiceImpl;
 import org.cedro.orderutils.feign.viacep.record.Endereco;
 import org.cedro.orderutils.feign.viacep.service.ViaCep;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/orderflow/v1/order")
-public class OrdemController {
+public class OrdemController  {
 
     @Autowired
     private KafkaTemplate<String, String> kafkaTemplate;
