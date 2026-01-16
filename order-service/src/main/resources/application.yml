@@ -1,15 +1,17 @@
 spring:
   application:
     name: order-service
+  profiles:
+    active: test
   config:
     import: optional:configserver:http://localhost:8888
 
   kafka:
     bootstrap-servers: localhost:9091
 
-    consumer:
-      group-id: order-service-group
-      auto-offset-reset: earliest
+#    consumer:
+#      group-id: order-service-group
+#      auto-offset-reset: earliest
 
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
