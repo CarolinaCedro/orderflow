@@ -13,9 +13,6 @@ import org.springframework.context.annotation.ComponentScan;
 @ComponentScan(basePackages = {
         "org.cedro.orderutils.feign.viacep"
 })
-//@EnableFeignClients(basePackages = {
-//
-//})
 public class OrderServiceApplication {
 
     public static void main(String[] args) {
