@@ -2,8 +2,6 @@ package org.cedro.orderservice.controler;
 
 import org.cedro.orderservice.events.OrderCreatedEvent;
 import org.cedro.orderservice.service.OrderService;
-import org.cedro.orderutils.feign.viacep.record.Endereco;
-import org.cedro.orderutils.feign.viacep.service.ViaCep;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -21,16 +19,14 @@ public class OrdemController  {
     @Autowired
     private ApplicationEventPublisher publisher;
 
-    private final ViaCep viaCep;
 
-    @Value("${custom.message}")
-    private String mensagemTeste;
+//    @Value("${custom.message}")
+//    private String mensagemTeste;
 
 
     private final OrderService orderService;
 
-    public OrdemController(ViaCep viaCep, OrderService orderService) {
-        this.viaCep = viaCep;
+    public OrdemController( OrderService orderService) {
         this.orderService = orderService;
     }
 
@@ -47,15 +43,15 @@ public class OrdemController  {
     }
 
     //Apenas Teste com o feingh via cep
-    @GetMapping("/endereco/{cep}")
-    ResponseEntity<Endereco> getEndereco(@PathVariable String cep) {
-        Endereco endereco = viaCep.getEndereco(cep);
-        if (endereco != null) {
-            return ResponseEntity.ok(endereco);
-        }
-        throw new RuntimeException("Endereço não encontrado para o CEP: " + cep);
-
-    }
+//    @GetMapping("/endereco/{cep}")
+//    ResponseEntity<Endereco> getEndereco(@PathVariable String cep) {
+//        Endereco endereco = viaCep.getEndereco(cep);
+//        if (endereco != null) {
+//            return ResponseEntity.ok(endereco);
+//        }
+//        throw new RuntimeException("Endereço não encontrado para o CEP: " + cep);
+//
+//    }
 
     @GetMapping("/publicando")
     ResponseEntity<String> eventPublicTest() {
@@ -65,10 +61,10 @@ public class OrdemController  {
     }
 
 
-    @GetMapping("/config-server-ping")
-    public String getMensagemTeste() {
-        return mensagemTeste;
-    }
+//    @GetMapping("/config-server-ping")
+//    public String getMensagemTeste() {
+//        return mensagemTeste;
+//    }
 
 
 }
