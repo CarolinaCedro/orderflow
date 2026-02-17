@@ -2,9 +2,8 @@ package org.cedro.orderservice.controler;
 
 import org.cedro.orderservice.events.OrderCreatedEvent;
 import org.cedro.orderservice.service.OrderService;
-import org.cedro.orderutils.feign.viacep.record.Endereco;
-import org.cedro.orderutils.feign.viacep.service.ViaCep;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -12,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/orderflow/v1/order")
-public class OrdemController {
+public class OrdemController  {
 
     @Autowired
     private KafkaTemplate<String, String> kafkaTemplate;
@@ -20,13 +19,14 @@ public class OrdemController {
     @Autowired
     private ApplicationEventPublisher publisher;
 
-    private final ViaCep viaCep;
+
+//    @Value("${custom.message}")
+//    private String mensagemTeste;
 
 
     private final OrderService orderService;
 
-    public OrdemController(ViaCep viaCep, OrderService orderService) {
-        this.viaCep = viaCep;
+    public OrdemController( OrderService orderService) {
         this.orderService = orderService;
     }
 
@@ -43,15 +43,15 @@ public class OrdemController {
     }
 
     //Apenas Teste com o feingh via cep
-    @GetMapping("/endereco/{cep}")
-    ResponseEntity<Endereco> getEndereco(@PathVariable String cep) {
-        Endereco endereco = viaCep.getEndereco(cep);
-        if (endereco != null) {
-            return ResponseEntity.ok(endereco);
-        }
-        throw new RuntimeException("Endereço não encontrado para o CEP: " + cep);
-
-    }
+//    @GetMapping("/endereco/{cep}")
+//    ResponseEntity<Endereco> getEndereco(@PathVariable String cep) {
+//        Endereco endereco = viaCep.getEndereco(cep);
+//        if (endereco != null) {
+//            return ResponseEntity.ok(endereco);
+//        }
+//        throw new RuntimeException("Endereço não encontrado para o CEP: " + cep);
+//
+//    }
 
     @GetMapping("/publicando")
     ResponseEntity<String> eventPublicTest() {
@@ -60,6 +60,11 @@ public class OrdemController {
         return ResponseEntity.ok("Evento OrderCreatedEvent publicado com sucesso!");
     }
 
+
+//    @GetMapping("/config-server-ping")
+//    public String getMensagemTeste() {
+//        return mensagemTeste;
+//    }
 
 
 }
