@@ -32,14 +32,5 @@ build/
 ### VS Code ###
 .vscode/
 
-### Node (não pertence a este projeto Java) ###
-node_modules/
-package.json
-package-lock.json
-
-### Claude Code ###
-.claude/
-
-### Dados gerados pelo Docker (não commitar) ###
+### Kafka data (gerado em runtime, nunca versionar) ###
 @docker-compose/kafka/data/
-@docker-compose/mongo-db/data/
