@@ -37,6 +37,13 @@ eureka:
 server:
   port: 8081
 
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:9999/.well-known/jwks.json
+
 logging:
   level:
     org.springframework.data.mongodb.core.MongoTemplate: DEBUG
