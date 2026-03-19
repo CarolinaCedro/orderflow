@@ -12,6 +12,7 @@ services:
     volumes:
       - ./data/zookeeper/data:/data
       - ./data/zookeeper/datalog:/datalog
+
   kafka1:
     image: confluentinc/cp-kafka:5.3.0
     hostname: kafka1
@@ -24,10 +25,13 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
       KAFKA_BROKER_ID: 1
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # Cria os tópicos automaticamente ao subir o broker
+      KAFKA_CREATE_TOPICS: "vendas-topico:1:1,payment-processed:1:1"
     volumes:
       - ./data/kafka1/data:/var/lib/kafka/data
     depends_on:
       - zookeeper
+
   kafdrop:
     image: obsidiandynamics/kafdrop
     restart: "no"
@@ -38,8 +42,11 @@ services:
     depends_on:
       - kafka1
 
-#Sobre o Zookeeper: https://dattell.com/data-architecture-blog/what-is-zookeeper-how-does-it-support-kafka/
-#Detalhes das variáveis de ambiente:
-#Zookeper: https://hub.docker.com/_/zookeeper
-#Kafka: https://docs.confluent.io/platform/current/kafka/multi-node.html
-#Kafdrop: https://github.com/obsidiandynamics/kafdrop
+# Tópicos do OrderFlow:
+#   vendas-topico    → Order Service (producer) → Payment Service (consumer: payment-group)
+#   payment-processed → Payment Service (producer) → Notification Service (consumer: notification-group)
+#
+# Referências:
+#   Zookeeper: https://hub.docker.com/_/zookeeper
+#   Kafka:     https://docs.confluent.io/platform/current/kafka/multi-node.html
+#   Kafdrop:   https://github.com/obsidiandynamics/kafdrop

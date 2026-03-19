@@ -18,7 +18,10 @@ public abstract class AbstractService<T> implements Rest<T> {
 
     @Override
     public ResponseEntity<T> update(String id, T model) {
-        return ResponseEntity.ok(getRepository().findById(id).orElse(null));
+        if (!getRepository().existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(getRepository().save(model));
     }
 
     @Override
