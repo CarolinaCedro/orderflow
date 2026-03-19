@@ -1,4 +1,4 @@
-package org.cedro.orderservice.controler;
+package org.cedro.orderservice.controller;
 
 
 import java.util.ArrayList;
