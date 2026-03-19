@@ -20,10 +20,21 @@ public class PaymentService {
 
     @KafkaListener(topics = "vendas-topico", groupId = "payment-group")
     public void processarVenda(String orderId) {
-        log.info("Order received for payment processing: {}", orderId);
-        // TODO: implementar lógica de pagamento
-        String status = "PAYMENT_SUCCESS";
-        kafkaTemplate.send(PAYMENT_PROCESSED_TOPIC, orderId, status);
-        log.info("Payment result published to {}: orderId={}, status={}", PAYMENT_PROCESSED_TOPIC, orderId, status);
+        log.info("Order received for payment processing: orderId={}", orderId);
+
+        String status = simulatePayment(orderId);
+        String payload = String.format(
+                "{\"orderId\":\"%s\",\"status\":\"%s\",\"processedAt\":\"%s\"}",
+                orderId, status, java.time.Instant.now()
+        );
+
+        kafkaTemplate.send(PAYMENT_PROCESSED_TOPIC, orderId, payload);
+        log.info("Payment processed: orderId={}, status={}", orderId, status);
+    }
+
+    private String simulatePayment(String orderId) {
+        // Simula aprovação — em produção aqui entraria a lógica real (antifraude, gateway, etc.)
+        log.info("Processing payment for order {}...", orderId);
+        return "PAYMENT_SUCCESS";
     }
 }
