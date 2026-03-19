@@ -3,7 +3,7 @@ spring:
     name: notification-service
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:9091
 
     consumer:
       group-id: notification-group
