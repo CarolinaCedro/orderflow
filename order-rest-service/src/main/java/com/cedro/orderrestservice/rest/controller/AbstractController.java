@@ -2,40 +2,45 @@ package com.cedro.orderrestservice.rest.controller;
 
 import com.cedro.orderrestservice.rest.Rest;
 import com.cedro.orderrestservice.rest.service.impl.AbstractService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
 
+public abstract class AbstractController<Req, Res> implements Rest<Req, Res> {
 
-public abstract class AbstractController<T> implements Rest<T> {
-
-    protected abstract AbstractService<T> getService();
+    protected abstract AbstractService<Req, Res, ?> getService();
 
     @Override
-    public ResponseEntity<T> save(T value, String returnEntity) {
+    public ResponseEntity<Res> save(Req value, String returnEntity) {
         return getService().save(value, returnEntity);
     }
 
     @Override
-    public ResponseEntity<T> update(String id, T model) {
+    public ResponseEntity<Res> update(String id, Req model) {
         return getService().update(id, model);
     }
 
     @Override
     public void deleteById(String id) {
-         getService().deleteById(id);
+        getService().deleteById(id);
     }
 
     @Override
-    public ResponseEntity<T> findById(String id) {
+    public ResponseEntity<Res> findById(String id) {
         return getService().findById(id);
     }
 
     @Override
-    public ResponseEntity<List<T>> list(Map<String, String> allRequestParams) {
+    public ResponseEntity<List<Res>> list(Map<String, String> allRequestParams) {
         return getService().list(allRequestParams);
+    }
+
+    @Override
+    public ResponseEntity<Page<Res>> listPage(Map<String, String> allRequestParams, Pageable pageable) {
+        return getService().listPage(allRequestParams, pageable);
     }
 
     @Override

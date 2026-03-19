@@ -2,23 +2,15 @@ spring:
   application:
     name: inventory-service
 
-  kafka:
-    bootstrap-servers: localhost:9091
+  data:
+    mongodb:
+      uri: mongodb://root:products@localhost:27018/orderflow?authSource=admin
 
-    consumer:
-      group-id: inventory-group
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring:
-          json:
-            trusted:
-              packages: "org.cedro"
-
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:9999/.well-known/jwks.json
 
 eureka:
   client:
@@ -29,3 +21,7 @@ eureka:
 
 server:
   port: 8089
+
+logging:
+  level:
+    org.apache.kafka: WARN

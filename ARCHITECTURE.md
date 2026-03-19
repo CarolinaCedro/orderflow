@@ -9,13 +9,13 @@
 1. [Visão Geral](#1-visão-geral)
 2. [Stack Tecnológico](#2-stack-tecnológico)
 3. [Arquitetura de Serviços](#3-arquitetura-de-serviços)
-4. [Domínio de Negócio](#4-domínio-de-negócio)
-5. [Comunicação entre Serviços](#5-comunicação-entre-serviços)
-6. [Fluxo do Pedido (Order Lifecycle)](#6-fluxo-do-pedido-order-lifecycle)
-7. [Endpoints da API](#7-endpoints-da-api)
-8. [Infraestrutura e Docker](#8-infraestrutura-e-docker)
-9. [Como Rodar Localmente](#9-como-rodar-localmente)
-10. [Variáveis de Ambiente](#10-variáveis-de-ambiente)
+4. [Segurança](#4-segurança)
+5. [Domínio de Negócio](#5-domínio-de-negócio)
+6. [Comunicação entre Serviços](#6-comunicação-entre-serviços)
+7. [Fluxo do Pedido (Order Lifecycle)](#7-fluxo-do-pedido-order-lifecycle)
+8. [Endpoints da API](#8-endpoints-da-api)
+9. [Infraestrutura e Docker](#9-infraestrutura-e-docker)
+10. [Como Rodar Localmente](#10-como-rodar-localmente)
 11. [Padrões Arquiteturais](#11-padrões-arquiteturais)
 12. [Guia de Contribuição](#12-guia-de-contribuição)
 13. [Roadmap de Melhorias](#13-roadmap-de-melhorias)
@@ -24,18 +24,21 @@
 
 ## 1. Visão Geral
 
-O **OrderFlow** é um sistema de gestão de pedidos projetado para operações B2B. Ele gerencia o ciclo de vida completo de um pedido: da criação, passando por aprovação, pagamento, atualização de estoque, até a notificação e integração com ERP externo.
+O **OrderFlow** é um sistema de gestão de pedidos projetado para operações B2B. Ele gerencia o ciclo de vida completo de um pedido: da criação, passando por aprovação e pagamento, até a notificação ao cliente.
 
 ### Características Principais
 
 - Arquitetura de **microserviços** com Spring Cloud
-- **Event-driven** com Apache Kafka e RabbitMQ
+- **Event-driven** com Apache Kafka
 - **Service Discovery** dinâmico com Eureka
 - **API Gateway** unificado com Spring Cloud Gateway
 - **Configuração centralizada** com Config Server
+- **Segurança JWT RS256** com RBAC (ADMIN, MANAGER, BUYER, VIEWER)
 - Persistência em **MongoDB** (NoSQL)
-- **Multitenancy** e **Soft Delete** nativos no modelo de dados
-- **Auditoria completa** com metadados de criação, atualização e deleção
+- **Soft Delete** nativo com filtro automático nas queries
+- **Validação de dados** via Jakarta Validation em todas as entidades
+- **Auditoria completa** com metadados de criação e atualização
+- **Swagger UI** em todos os serviços REST
 
 ---
 
@@ -44,16 +47,18 @@ O **OrderFlow** é um sistema de gestão de pedidos projetado para operações B
 | Camada | Tecnologia | Versão |
 |---|---|---|
 | Linguagem | Java | 17 |
-| Framework Principal | Spring Boot | 3.4.x |
-| Cloud / Microserviços | Spring Cloud | 2024.0.x |
+| Framework Principal | Spring Boot | 3.4.3 |
+| Cloud / Microserviços | Spring Cloud | 2024.0.1 |
 | Service Registry | Spring Cloud Netflix Eureka | 4.2.x |
-| API Gateway | Spring Cloud Gateway | — |
+| API Gateway | Spring Cloud Gateway (WebFlux) | — |
 | Config Server | Spring Cloud Config | — |
-| Mensageria (Streaming) | Apache Kafka | 5.3.x (Confluent) |
-| Mensageria (Queue) | RabbitMQ (AMQP) | — |
-| Banco de Dados | MongoDB | latest |
+| Mensageria | Apache Kafka | — |
+| Banco de Dados | MongoDB | — |
 | ORM / Data | Spring Data MongoDB | — |
-| HTTP Client | OpenFeign | — |
+| Segurança | Spring Security 6.4.x + Nimbus JOSE JWT | — |
+| HTTP Client | OpenFeign (ViaCEP) | — |
+| Validação | Jakarta Validation (Hibernate Validator) | — |
+| Documentação | Springdoc OpenAPI (Swagger UI) | 2.8.3 |
 | Boilerplate | Lombok | — |
 | Monitoramento | Spring Boot Actuator | — |
 | Containerização | Docker + Docker Compose | — |
@@ -64,246 +69,257 @@ O **OrderFlow** é um sistema de gestão de pedidos projetado para operações B
 ## 3. Arquitetura de Serviços
 
 ```
-                          ┌─────────────────────────────┐
-                          │       Config Server          │
-                          │         :8888                │
-                          └──────────────┬──────────────┘
-                                         │ configuração
-                          ┌──────────────▼──────────────┐
-                          │       Eureka Server          │
-                          │    (Service Registry)        │
-                          │         :8761                │
-                          └──────────────┬──────────────┘
-                                         │ discovery
-                          ┌──────────────▼──────────────┐
-         CLIENT ─────────►│       API Gateway            │
-                          │    Spring Cloud Gateway      │
-                          │         :8080                │
-                          └──┬───────┬──────┬───────┬───┘
-                             │       │      │       │
-               ┌─────────────▼─┐ ┌───▼───┐ ┌▼────┐ ┌▼──────────────┐
-               │ Order Service  │ │Payment│ │Inven│ │Notification    │
-               │    :8081       │ │:8085  │ │:8089│ │Service :8083   │
-               └───────┬───────┘ └───┬───┘ └──┬──┘ └──────┬────────┘
-                       │             │         │            │
-               ┌───────▼──────┐  ┌──▼────┐  ┌─▼──────┐   │
-               │   MongoDB    │  │ Kafka │  │MongoDB │   │
-               │  (orders)    │  │:9091  │  │(products│  RabbitMQ
-               └──────────────┘  └───────┘  └────────┘  (paymentQueue)
-
-               ┌──────────────────────────────────────────────────┐
-               │              Order Security Server                │
-               │                  (WIP)                           │
-               └──────────────────────────────────────────────────┘
+                      ┌─────────────────────────────┐
+                      │       Config Server          │
+                      │         :8888                │
+                      └──────────────┬──────────────┘
+                                     │ configuração
+                      ┌──────────────▼──────────────┐
+                      │       Eureka Server          │
+                      │    (Service Registry)        │
+                      │         :8761                │
+                      └──────────────┬──────────────┘
+                                     │ discovery
+         ┌──────────┐ ┌──────────────▼──────────────┐
+         │ Security │ │       API Gateway            │
+         │ Server   │ │    Spring Cloud Gateway      │◄── CLIENT
+         │  :9999   │ │         :8080                │
+         └────▲─────┘ └──┬───────┬──────┬───────┬───┘
+     JWKS/auth│           │       │      │       │
+              │     ┌─────▼──┐ ┌──▼───┐ ┌▼────┐ ┌▼──────────┐
+              │     │ Order  │ │Pay-  │ │Inv. │ │Notif.      │
+              │     │Service │ │ment  │ │Serv.│ │Service     │
+              │     │ :8081  │ │:8085 │ │:8089│ │:8083       │
+              │     └───┬────┘ └──┬───┘ └──┬──┘ └──┬─────────┘
+              │         │    Kafka │        │   Kafka│
+              │    ┌────▼───┐ ┌───▼────────▼───────▼──┐
+              └────┤MongoDB │ │        Kafka           │
+                   │:27018  │ │ vendas-topico          │
+                   └────────┘ │ payment-processed      │
+                              │        :9091           │
+                              └────────────────────────┘
 ```
 
 ### Módulos e Responsabilidades
 
 | Módulo | Tipo | Porta | Responsabilidade |
 |---|---|---|---|
-| `gateway-server` | Serviço | 8080 | Ponto único de entrada. Roteia requisições para os serviços via Eureka. |
-| `order-service` | Serviço | 8081 | CRUD de pedidos. Lógica de negócio central. Publica eventos no Kafka. |
-| `notification-service` | Serviço | 8083 | Consome mensagens RabbitMQ (`paymentQueue`) e envia notificações. |
-| `payment-service` | Serviço | 8085 | Consome eventos Kafka (`vendas-topico`) e processa pagamentos. |
-| `inventory-service` | Serviço | 8089 | Gerencia catálogo de produtos e controle de estoque. |
-| `eureka-server` | Infraestrutura | 8761 | Service registry. Todos os serviços se registram aqui. |
-| `config-server` | Infraestrutura | 8888 | Configuração centralizada para todos os serviços. |
-| `order-security-server` | Serviço | — | Autenticação e autorização (em desenvolvimento). |
-| `order-model` | Biblioteca | — | Entidades de domínio compartilhadas entre serviços. |
-| `order-rest-service` | Biblioteca | — | Abstrações genéricas de CRUD (AbstractController, AbstractService). |
-| `order-utils` | Biblioteca | — | Exceções, exception handler global, integração ViaCEP. |
+| `gateway-server` | Serviço | 8080 | Ponto único de entrada. Valida JWT. Roteia via Eureka. |
+| `order-service` | Serviço | 8081 | CRUD de pedidos. Publica em `vendas-topico`. |
+| `notification-service` | Serviço | 8083 | Consome `payment-processed`. Simula envio de e-mail. |
+| `payment-service` | Serviço | 8085 | Consome `vendas-topico`, publica em `payment-processed`. |
+| `inventory-service` | Serviço | 8089 | CRUD de produtos com RBAC. |
+| `eureka-server` | Infraestrutura | 8761 | Service registry. |
+| `config-server` | Infraestrutura | 8888 | Configuração centralizada. |
+| `order-security-server` | Serviço | 9999 | Auth server: `/auth/login` + `/.well-known/jwks.json`. |
+| `order-model` | Biblioteca | — | Entidades de domínio compartilhadas. |
+| `order-rest-service` | Biblioteca | — | AbstractController + AbstractService (CRUD genérico, filtros). |
+| `order-utils` | Biblioteca | — | Exception handler, MicroserviceSecurityConfig (autoconfigured), SecurityContextHelper, ViaCEP. |
 
 ---
 
-## 4. Domínio de Negócio
+## 4. Segurança
+
+### Modelo de Autenticação
+
+O sistema utiliza **JWT RS256** com par de chaves RSA 2048 bits gerado pelo `order-security-server`.
+
+```
+1. Cliente → POST /order-security-server/auth/login
+             { "username": "buyer1", "password": "buyer123" }
+
+2. Security Server → { "token": "eyJ...", "expiresIn": 3600 }
+
+3. Cliente → qualquer endpoint
+             Authorization: Bearer eyJ...
+
+4. Gateway valida JWT contra /.well-known/jwks.json antes de rotear
+
+5. Serviço valida JWT novamente (defesa em profundidade)
+```
+
+### RBAC — Papéis e Permissões
+
+| Role | Criar | Editar | Deletar | Visualizar |
+|---|---|---|---|---|
+| `ADMIN` | ✅ | ✅ | ✅ | ✅ |
+| `MANAGER` | ✅ | ✅ | ❌ | ✅ |
+| `BUYER` | ✅ | ❌ | ❌ | ✅ |
+| `VIEWER` | ❌ | ❌ | ❌ | ✅ |
+
+### Usuários de Teste (criados no startup)
+
+| Usuário | Senha | Role |
+|---|---|---|
+| `admin` | `admin123` | ADMIN |
+| `manager1` | `manager123` | MANAGER |
+| `buyer1` | `buyer123` | BUYER |
+
+### Endpoints Públicos (sem token)
+
+| Endpoint | Serviço |
+|---|---|
+| `POST /auth/login` | order-security-server |
+| `GET /.well-known/jwks.json` | order-security-server |
+| `GET /actuator/**` | todos |
+| `GET /swagger-ui/**` | todos |
+| `GET /v3/api-docs/**` | todos |
+
+---
+
+## 5. Domínio de Negócio
 
 ### Entidades Principais
 
 #### Order (Pedido)
-Entidade central do sistema. Representa um pedido de compra B2B.
-
 ```
 Order
-├── id                 (String)         — Identificador único (MongoDB ObjectId)
-├── customerId         (String)         — ID do cliente
-├── customerName       (String)         — Nome do cliente
-├── items              (List<OrderItem>) — Itens do pedido
-├── totalAmount        (BigDecimal)     — Valor total
-├── status             (OrderStatus)    — Status do pedido
-├── approvalStatus     (ApprovalStatus) — Status de aprovação
-├── approvedBy         (String)         — Usuário que aprovou
-├── approvalDate       (LocalDateTime)  — Data de aprovação
-├── erpOrderId         (String)         — ID no ERP externo
-└── metadata           (Metadata)       — Metadados de auditoria
+├── id                 (String)          — @Id MongoDB
+├── customerId         (String)          — @NotBlank
+├── customerName       (String)          — @NotBlank
+├── items              (List<OrderItem>) — @NotEmpty @Valid
+├── totalAmount        (BigDecimal)      — @NotNull @Positive
+├── status             (OrderStatus)
+├── approvalStatus     (ApprovalStatus)
+├── approvedBy         (String)
+├── approvalDate       (LocalDateTime)
+├── erpOrderId         (String)
+└── metadata           (Metadata)
 ```
 
-#### OrderItem (Item do Pedido)
+#### OrderItem
 ```
 OrderItem
-├── productId    (String)     — ID do produto no catálogo
-├── productName  (String)     — Nome do produto
-├── quantity     (Integer)    — Quantidade solicitada
-├── unitPrice    (BigDecimal) — Preço unitário
-└── totalPrice   (BigDecimal) — Preço total do item
+├── productId    (String)     — @NotBlank
+├── productName  (String)     — @NotBlank
+├── quantity     (Integer)    — @NotNull @Positive
+├── unitPrice    (BigDecimal) — @NotNull @Positive
+└── totalPrice   (BigDecimal)
 ```
 
 #### Product (Produto)
-Coleção MongoDB: `products` (gerenciada pelo Inventory Service)
-
 ```
 Product
-├── id             (String)     — Identificador único
-├── name           (String)     — Nome do produto
-├── description    (String)     — Descrição
-├── category       (String)     — Categoria
-├── price          (BigDecimal) — Preço de venda
-├── stockQuantity  (Integer)    — Quantidade em estoque
-├── brand          (String)     — Marca
-├── size           (String)     — Tamanho
-├── color          (String)     — Cor
-├── material       (String)     — Material
-├── weight         (Double)     — Peso
-├── rating         (Double)     — Avaliação média
-├── reviewCount    (Integer)    — Número de avaliações
-└── isActive       (Boolean)    — Produto ativo
+├── id             (String)     — @Id MongoDB
+├── name           (String)     — @NotBlank
+├── category       (String)     — @NotBlank
+├── price          (BigDecimal) — @NotNull @Positive
+├── stockQuantity  (Integer)    — @NotNull @Min(0)
+├── description    (String)
+├── brand / size / color / material
+├── weight / rating / reviewCount
+└── isActive       (Boolean)    — default: true
 ```
 
-#### Metadata (Auditoria e Controle)
-Campo presente em todas as entidades principais.
+#### AppUser (Usuário)
+```
+AppUser
+├── id       (String)    — @Id MongoDB
+├── username (String)
+├── password (String)    — BCrypt
+├── roles    (Set<Role>) — ADMIN, MANAGER, BUYER, VIEWER
+└── active   (boolean)
+```
 
+#### Metadata (Auditoria)
 ```
 Metadata
-├── createdBy      (String)        — Usuário criador
-├── createdAt      (LocalDateTime) — Data de criação
-├── updatedBy      (String)        — Último usuário a atualizar
-├── updatedAt      (LocalDateTime) — Data da última atualização
-├── deletedBy      (String)        — Usuário que deletou
-├── deletedAt      (LocalDateTime) — Data de deleção (soft delete)
-├── deleted        (Boolean)       — Flag de soft delete (default: false)
-├── correlationId  (String)        — ID de rastreamento da requisição
-├── tenantId       (String)        — ID do tenant (multitenancy)
-└── version        (Long)          — Versão para controle otimista
+├── createdAt / createdBy
+├── updatedAt / updatedBy
+├── deletedAt / deletedBy
+├── deleted        (Boolean) — soft delete flag, filtrado automaticamente
+├── correlationId
+├── tenantId       — multitenancy
+└── version        — controle otimista
 ```
 
 ### Enumerações
 
-#### OrderStatus — Ciclo de Vida do Pedido
-| Status | Descrição |
-|---|---|
-| `DRAFT` | Pedido em rascunho, ainda editável |
-| `PENDING_APPROVAL` | Aguardando aprovação |
-| `APPROVED` | Aprovado, pronto para processamento |
-| `REJECTED` | Reprovado na aprovação |
-| `SENT_TO_ERP` | Enviado ao sistema ERP externo |
-| `COMPLETED` | Pedido concluído com sucesso |
-| `CANCELLED` | Pedido cancelado |
+#### OrderStatus
+`DRAFT` → `PENDING_APPROVAL` → `APPROVED` / `REJECTED` → `SENT_TO_ERP` → `COMPLETED` / `CANCELLED`
 
-#### ApprovalStatus — Status de Aprovação
-| Status | Descrição |
-|---|---|
-| `NOT_REQUIRED` | Aprovação não necessária |
-| `PENDING` | Aguardando aprovação |
-| `APPROVED` | Aprovado |
-| `REJECTED` | Reprovado |
-| `REVISION_REQUESTED` | Revisão solicitada pelo aprovador |
+#### ApprovalStatus
+`NOT_REQUIRED` | `PENDING` | `APPROVED` | `REJECTED` | `REVISION_REQUESTED`
 
 ---
 
-## 5. Comunicação entre Serviços
+## 6. Comunicação entre Serviços
 
 ### Kafka (Event Streaming)
 
-Usado para comunicação assíncrona de alta throughput entre serviços.
-
-| Tópico | Producer | Consumer | Descrição |
+| Tópico | Producer | Consumer(s) | Payload |
 |---|---|---|---|
-| `vendas-topico` | Order Service | Payment Service | Evento de pedido criado/aprovado para processamento de pagamento |
+| `vendas-topico` | order-service | payment-service | `orderId` (String) |
+| `payment-processed` | payment-service | notification-service, order-service | `{orderId, status, processedAt}` (JSON) |
 
-**Configuração:**
-- Bootstrap Servers: `localhost:9091` (externo), `kafka1:19091` (interno Docker)
-- Serialização: `StringSerializer` / `StringDeserializer`
-- UI (Kafdrop): `http://localhost:9000`
+**Configuração:** Bootstrap Servers `localhost:9091` | Kafdrop UI `http://localhost:9000`
 
-### RabbitMQ (Message Queue)
-
-Usado para notificações assíncronas.
-
-| Queue | Producer | Consumer | Descrição |
-|---|---|---|---|
-| `paymentQueue` | Payment Service | Notification Service | Status do processamento de pagamento |
-
-### OpenFeign (HTTP Client)
+### OpenFeign (HTTP Síncrono)
 
 | Client | URL | Uso |
 |---|---|---|
 | `ViaCep` | `https://viacep.com.br/ws/` | Busca endereço por CEP |
 
-### Spring Application Events (Interno)
-
-| Evento | Publisher | Listener | Descrição |
-|---|---|---|---|
-| `OrderCreatedEvent` | Order Service | `OrderCreatedEventListener` | Evento interno ao criar pedido |
-
 ---
 
-## 6. Fluxo do Pedido (Order Lifecycle)
+## 7. Fluxo do Pedido (Order Lifecycle)
 
 ```
-1. CRIAÇÃO
-   Cliente ──► POST /orderflow/v1/order
-              └── Order Service cria pedido com status DRAFT
-              └── Persiste no MongoDB (collection: orders)
-              └── Publica OrderCreatedEvent (interno)
+1. AUTENTICAÇÃO
+   POST /order-security-server/auth/login → JWT
 
-2. SUBMISSÃO PARA APROVAÇÃO
-   ──► PUT /orderflow/v1/order/{id}  { status: PENDING_APPROVAL }
-       └── Order Service atualiza status
+2. CRIAÇÃO DO PEDIDO
+   POST /order-service/orderflow/v1/order  (Bearer <jwt>, role: BUYER+)
+   └── Salva no MongoDB com status PENDING_APPROVAL
+   └── Publica orderId em vendas-topico
 
-3. APROVAÇÃO / REJEIÇÃO
-   Aprovador ──► PUT /orderflow/v1/order/{id}  { approvalStatus: APPROVED/REJECTED }
-                └── Registra approvedBy + approvalDate
-                └── Atualiza status para APPROVED ou REJECTED
+3. PROCESSAMENTO DE PAGAMENTO (assíncrono)
+   payment-service consome vendas-topico
+   └── Simula pagamento → PAYMENT_SUCCESS
+   └── Publica {orderId, status, processedAt} em payment-processed
 
-4. PROCESSAMENTO DE PAGAMENTO
-   ──► Order Service publica evento no Kafka (vendas-topico)
-       └── Payment Service consome e processa pagamento
-       └── Payment Service publica resultado no RabbitMQ (paymentQueue)
+4. ATUALIZAÇÃO DO PEDIDO (assíncrono)
+   order-service consome payment-processed
+   └── PAYMENT_SUCCESS → status=COMPLETED, approvalStatus=APPROVED
+   └── PAYMENT_FAILURE → status=CANCELLED, approvalStatus=REJECTED
 
-5. NOTIFICAÇÃO
-   ──► Notification Service consome paymentQueue
-       └── Envia notificação ao cliente (email/SMS/push)
-
-6. ATUALIZAÇÃO DE ESTOQUE
-   ──► Inventory Service reduz stockQuantity dos produtos
-
-7. INTEGRAÇÃO ERP
-   ──► Order Service atualiza erpOrderId
-       └── Status: SENT_TO_ERP → COMPLETED
+5. NOTIFICAÇÃO (assíncrono)
+   notification-service consome payment-processed
+   └── Loga simulação de e-mail ao cliente
 ```
 
 ---
 
-## 7. Endpoints da API
+## 8. Endpoints da API
 
-Todos os endpoints são acessíveis via **API Gateway** (`http://localhost:8080`).
-O Gateway usa Service Discovery automático: o prefixo da rota é o nome do serviço em lowercase.
+Todos acessíveis via Gateway (`http://localhost:8080`) com `Authorization: Bearer <token>`.
 
-### Order Service — `http://localhost:8081`
+### Auth — order-security-server (público)
 
-Via Gateway: `http://localhost:8080/order-service/...`
-
-| Método | Endpoint | Descrição |
+| Método | Endpoint via Gateway | Descrição |
 |---|---|---|
-| `POST` | `/orderflow/v1/order` | Criar novo pedido |
-| `GET` | `/orderflow/v1/order` | Listar todos os pedidos |
-| `GET` | `/orderflow/v1/order/{id}` | Buscar pedido por ID |
-| `GET` | `/orderflow/v1/order/count` | Contar total de pedidos |
-| `PUT` | `/orderflow/v1/order/{id}` | Atualizar pedido |
-| `DELETE` | `/orderflow/v1/order/{id}` | Deletar pedido |
+| `POST` | `/order-security-server/auth/login` | Obter JWT |
+| `GET` | `/order-security-server/.well-known/jwks.json` | Chave pública |
+
+### Order Service
+
+Via Gateway: `http://localhost:8080/order-service/orderflow/v1/order`
+
+| Método | Endpoint | Role Mínima |
+|---|---|---|
+| `POST` | `/orderflow/v1/order` | BUYER |
+| `GET` | `/orderflow/v1/order` | VIEWER |
+| `GET` | `/orderflow/v1/order/{id}` | VIEWER |
+| `GET` | `/orderflow/v1/order/count` | VIEWER |
+| `PUT` | `/orderflow/v1/order/{id}` | MANAGER |
+| `DELETE` | `/orderflow/v1/order/{id}` | ADMIN |
+
+**Filtros dinâmicos:** `GET /orderflow/v1/order?status=PENDING_APPROVAL&customerId=123`
 
 **Exemplo — Criar Pedido:**
 ```json
 POST /orderflow/v1/order
+Authorization: Bearer eyJ...
 {
   "customerId": "cust-001",
   "customerName": "Empresa XYZ",
@@ -316,135 +332,99 @@ POST /orderflow/v1/order
       "totalPrice": 999.00
     }
   ],
-  "totalAmount": 999.00,
-  "status": "DRAFT",
-  "approvalStatus": "NOT_REQUIRED"
+  "totalAmount": 999.00
 }
 ```
 
-### Inventory Service — `http://localhost:8089`
+### Inventory Service
 
-Via Gateway: `http://localhost:8080/inventory-service/...`
+Via Gateway: `http://localhost:8080/inventory-service/orderflow/v1/product`
 
-| Método | Endpoint | Descrição |
+| Método | Endpoint | Role Mínima |
 |---|---|---|
-| `POST` | `/` | Cadastrar produto |
-| `GET` | `/` | Listar produtos |
-| `GET` | `/{id}` | Buscar produto por ID |
-| `PUT` | `/{id}` | Atualizar produto |
-| `DELETE` | `/{id}` | Remover produto |
+| `POST` | `/orderflow/v1/product` | MANAGER |
+| `GET` | `/orderflow/v1/product` | VIEWER |
+| `GET` | `/orderflow/v1/product/{id}` | VIEWER |
+| `GET` | `/orderflow/v1/product/count` | VIEWER |
+| `PUT` | `/orderflow/v1/product/{id}` | MANAGER |
+| `DELETE` | `/orderflow/v1/product/{id}` | ADMIN |
 
-### Interfaces de Monitoramento
+### Monitoramento
 
-| Interface | URL | Descrição |
-|---|---|---|
-| Eureka Dashboard | `http://localhost:8761` | Serviços registrados |
-| Kafdrop (Kafka UI) | `http://localhost:9000` | Tópicos e mensagens Kafka |
-| Actuator | `http://localhost:808x/actuator` | Health, métricas |
+| Interface | URL |
+|---|---|
+| Eureka Dashboard | `http://localhost:8761` |
+| Kafdrop (Kafka UI) | `http://localhost:9000` |
+| Swagger — order-service | `http://localhost:8081/swagger-ui/index.html` |
+| Swagger — inventory-service | `http://localhost:8089/swagger-ui/index.html` |
+| Swagger — security-server | `http://localhost:9999/swagger-ui/index.html` |
 
 ---
 
-## 8. Infraestrutura e Docker
+## 9. Infraestrutura e Docker
 
 ### MongoDB
-
-```yaml
-# @docker-compose/mongo-db/docker-compose.yml
+```
 Container: products-db
 Porta:     27018 (externo) → 27017 (interno)
-Username:  root
-Password:  products
+Database:  orderflow
+Username:  root / Password: products
 ```
 
 ### Kafka + Zookeeper + Kafdrop
-
-```yaml
-# @docker-compose/kafka/docker-compose.yml
+```
 Zookeeper:  2181
 Kafka:      9091 (externo) → 19091 (interno Docker)
 Kafdrop UI: 9000
 ```
 
 ### Iniciar Infraestrutura
-
 ```bash
-# MongoDB
-cd @docker-compose/mongo-db
-docker-compose up -d
-
-# Kafka
-cd @docker-compose/kafka
-docker-compose up -d
+cd @docker-compose/mongo-db && docker compose up -d
+cd @docker-compose/kafka    && docker compose up -d
 ```
 
 ---
 
-## 9. Como Rodar Localmente
-
-### Pré-requisitos
-
-- Java 17+
-- Maven 3.8+ (ou use o wrapper `./mvnw`)
-- Docker + Docker Compose
+## 10. Como Rodar Localmente
 
 ### Ordem de Inicialização
 
-Os serviços devem ser iniciados na seguinte ordem:
-
 ```
-1. Infraestrutura (MongoDB + Kafka)
-2. Config Server    (:8888)
-3. Eureka Server    (:8761)
-4. Gateway Server   (:8080)
-5. Order Service    (:8081)
-6. Payment Service  (:8085)
-7. Inventory Service(:8089)
-8. Notification Service (:8083)
-9. Order Security Server
+1. MongoDB + Kafka (Docker)
+2. eureka-server      :8761
+3. config-server      :8888
+4. order-security-server :9999
+5. order-service      :8081
+6. payment-service    :8085
+7. notification-service :8083
+8. inventory-service  :8089
+9. gateway-server     :8080
 ```
 
 ### Comandos
-
 ```bash
-# Clonar o repositório
-git clone <repo-url>
-cd orderflow
+# Build completo
+mvn clean install -DskipTests
 
-# Subir infraestrutura
-cd @docker-compose/mongo-db && docker-compose up -d && cd ../..
-cd @docker-compose/kafka && docker-compose up -d && cd ../..
-
-# Build de todos os módulos
-./mvnw clean install -DskipTests
-
-# Iniciar cada serviço (em terminais separados)
-cd config-server    && ../mvnw spring-boot:run
-cd eureka-server    && ../mvnw spring-boot:run
-cd gateway-server   && ../mvnw spring-boot:run
-cd order-service    && ../mvnw spring-boot:run
-cd payment-service  && ../mvnw spring-boot:run
-cd inventory-service && ../mvnw spring-boot:run
-cd notification-service && ../mvnw spring-boot:run
-
-# Executar testes
-./mvnw test
+# Iniciar serviço
+cd <nome-do-servico>
+mvn spring-boot:run
 ```
 
----
+### Teste rápido do fluxo completo
+```bash
+# 1. Login
+curl -X POST http://localhost:9999/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"buyer1","password":"buyer123"}'
 
-## 10. Variáveis de Ambiente
-
-> **Atenção:** As configurações abaixo ainda estão hardcoded em alguns serviços (ver Roadmap de Melhorias). O objetivo é externalizá-las via Config Server ou variáveis de ambiente.
-
-| Variável | Valor Padrão | Descrição |
-|---|---|---|
-| `MONGO_URI` | `mongodb://root:products@localhost:27018` | URI de conexão MongoDB |
-| `MONGO_DB` | `orderflow` | Nome do banco |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9091` | Endereço do Kafka |
-| `EUREKA_URL` | `http://localhost:8761/eureka/` | URL do Eureka |
-| `CONFIG_SERVER_URL` | `http://localhost:8888` | URL do Config Server |
-| `RABBITMQ_HOST` | `localhost` | Host do RabbitMQ |
-| `RABBITMQ_PORT` | `5672` | Porta do RabbitMQ |
+# 2. Criar pedido (substituir <token>)
+curl -X POST http://localhost:8080/order-service/orderflow/v1/order \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{ "customerId":"c1", "customerName":"Empresa X", "items":[{"productId":"p1","productName":"Produto A","quantity":2,"unitPrice":50.00,"totalPrice":100.00}], "totalAmount":100.00 }'
+```
 
 ---
 
@@ -452,94 +432,78 @@ cd notification-service && ../mvnw spring-boot:run
 
 ### Template Method — AbstractController / AbstractService
 
-Padrão que elimina boilerplate de CRUD. Cada serviço herda as operações genéricas.
-
 ```
 Rest<T> (interface)
-    ├── AbstractController<T>   ←── Controllers estendem isso
-    │       └── delega para ──► AbstractService<T>
-    └── AbstractService<T>      ←── Services estendem isso
-            └── usa ──► MongoRepository<T, String>
+    ├── AbstractController<T>   ← Controllers estendem
+    │       └── delega para → AbstractService<T>
+    └── AbstractService<T>      ← Services estendem
+            ├── MongoTemplate   → filtros dinâmicos + soft delete
+            └── MongoRepository → CRUD básico
 ```
+
+`AbstractService` aplica automaticamente:
+- Filtro `metadata.deleted != true` em todo `list()` e `count()`
+- Filtros dinâmicos via query params: `?campo=valor`
 
 ### Event-Driven Architecture
 
 ```
-Order Service ──[Kafka: vendas-topico]──► Payment Service
-                                                │
-                                    [RabbitMQ: paymentQueue]
-                                                │
-                                         Notification Service
+order-service ──[vendas-topico]──► payment-service
+                                          │
+                              [payment-processed]
+                                    ┌─────┴──────┐
+                             order-service   notification-service
+                           (atualiza status) (simula e-mail)
 ```
 
-### Multitenancy
+### Segurança em Camadas
 
-Implementado via campo `metadata.tenantId` em todas as entidades. Cada requisição deve carregar o tenant no contexto.
+```
+Internet → Gateway (valida JWT) → Serviço (valida JWT + @PreAuthorize)
+```
 
 ### Soft Delete
 
-Registros nunca são deletados fisicamente. O campo `metadata.deleted = true` marca o registro como deletado.
+`metadata.deleted = true` marca o registro. Nunca deletado fisicamente.
+`AbstractService` filtra automaticamente registros deletados em todas as listagens.
 
-### Auditoria
+### Multitenancy
 
-Todas as operações de criação, atualização e deleção são registradas automaticamente via `Metadata`.
-
-### Correlation ID
-
-Campo `metadata.correlationId` permite rastrear uma requisição por todos os serviços (implementação de tracing manual, a ser evoluído para Micrometer Tracing).
+Campo `metadata.tenantId` em todas as entidades para suporte multi-empresa.
 
 ---
 
 ## 12. Guia de Contribuição
 
-### Estrutura de Pacotes Java
+### Estrutura de Pacotes
 
 ```
 org.cedro.<nome-do-servico>/
-├── <NomeDoServicoApplication>.java
 ├── controller/
-│   └── <Entidade>Controller.java
 ├── service/
-│   ├── <Entidade>Service.java      (interface)
 │   └── impl/
-│       └── <Entidade>ServiceImpl.java
 ├── repository/
-│   └── <Entidade>Repository.java
 ├── config/
-│   └── (configurações específicas)
-├── events/
-│   └── (eventos de domínio)
-└── listeners/
-    └── (listeners de eventos)
+├── listeners/
+└── init/
 ```
-
-### Convenções de Nomenclatura
-
-- Classes em **PascalCase** inglês
-- Métodos e variáveis em **camelCase** inglês
-- Constantes em **UPPER_SNAKE_CASE**
-- Endpoints REST em **kebab-case** minúsculo
-- Tópicos Kafka em **kebab-case**: `order-created`, `payment-processed`
-- Queues RabbitMQ em **camelCase**: `paymentQueue`
 
 ### Gitflow
 
 ```
-master         ─── produção
-develop        ─── integração
-feature/*      ─── novas features
-hotfix/*       ─── correções urgentes em produção
-release/*      ─── preparação de release
+master     → produção
+develop    → integração
+feature/*  → novas features
+hotfix/*   → correções urgentes
 ```
 
-### Commits
+### Commits (Conventional Commits)
 
-Seguir **Conventional Commits**:
 ```
 feat: adiciona endpoint de aprovação de pedidos
-fix: corrige cálculo de totalAmount com desconto
-refactor: extrai lógica de validação para OrderValidator
-docs: atualiza documentação de endpoints
+fix: corrige filtro de soft delete no AbstractService
+refactor: extrai lógica de pagamento para PaymentProcessor
+docs: atualiza ARCHITECTURE.md
 test: adiciona testes unitários para OrderService
 ```
 
@@ -547,52 +511,41 @@ test: adiciona testes unitários para OrderService
 
 ## 13. Roadmap de Melhorias
 
-### Fase 1 — Fundação Sólida (Imediato)
+### ✅ Concluído
 
-- [ ] Corrigir typos de nomenclatura (`PaymenteService`, `OrdemController`, package `controler`)
-- [ ] Padronizar groupId Maven para `org.cedro.orderflow`
-- [ ] Substituir `System.out.println` por `@Slf4j` + `log.info/error`
-- [ ] Externalizar configurações hardcoded para `application.yml`
-- [ ] Adicionar `@Valid` + Bean Validation nas entidades e controllers
-- [ ] Implementar filtro de soft delete no `AbstractService`
-- [ ] Preencher `GROUP_ID_CONFIG` vazio no `KafkaConsumerConfig` do payment-service
+- [x] CRUD genérico com AbstractController/AbstractService
+- [x] Kafka end-to-end (order → payment → notification → order update)
+- [x] Soft delete com filtro automático nas queries
+- [x] Filtros dinâmicos por query param
+- [x] Validação de dados com Jakarta Validation
+- [x] JWT RS256 + RBAC completo
+- [x] Gateway como resource server (WebFlux)
+- [x] MicroserviceSecurityConfig autoconfigured via order-utils
+- [x] @PreAuthorize nos controllers (order-service, inventory-service)
+- [x] Swagger/OpenAPI em todos os serviços REST
+- [x] inventory-service com CRUD completo de produtos
+- [x] Metadados automáticos (createdAt, updatedAt) via MongoEventListener
 
-### Fase 2 — Qualidade e Contratos (Curto Prazo)
+### 🔴 Pendente — Alta Prioridade
 
-- [ ] Criar camada de DTOs separada das entidades de domínio
-- [ ] Adicionar MapStruct para mapeamento DTO ↔ Entidade
-- [ ] Implementar paginação (`Page<T>` + `Pageable`) em todas as listagens
-- [ ] Adicionar springdoc-openapi (Swagger UI em `/swagger-ui.html`)
-- [ ] Testes unitários com JUnit5 + Mockito
-- [ ] Testes de integração com Testcontainers (MongoDB + Kafka)
+- [ ] **Testes** — unitários (Mockito) e integração (Testcontainers)
+- [ ] **DTOs** — separar entidades de domínio dos contratos de API
+- [ ] **Paginação** — `Page<T>` + `Pageable` no AbstractService
 
-### Fase 3 — Resiliência e Observabilidade (Médio Prazo)
+### 🟡 Pendente — Média Prioridade
 
-- [ ] Implementar Resilience4j (Circuit Breaker, Retry, Rate Limiter por serviço)
-- [ ] Adicionar Micrometer Tracing + Zipkin para tracing distribuído
-- [ ] Propagar `correlationId` via headers HTTP entre serviços
-- [ ] Expor métricas via Actuator + Prometheus
-- [ ] Configurar health checks granulares (MongoDB, Kafka, RabbitMQ)
+- [ ] **Circuit Breaker** — Resilience4j (Retry, Rate Limiter)
+- [ ] **Tracing distribuído** — Micrometer Tracing + Zipkin
+- [ ] **Rate Limiting** — Spring Cloud Gateway + Redis
+- [ ] **CORS** — política no Gateway
+- [ ] **Índices MongoDB** — `@Indexed` em customerId, status, tenantId
 
-### Fase 4 — Segurança (Médio Prazo)
+### 🚀 CI/CD
 
-- [ ] Implementar JWT no `order-security-server`
-- [ ] Configurar OAuth2 Resource Server nos microserviços
-- [ ] Validar token no Gateway antes de rotear requisições
-- [ ] Implementar RBAC para fluxo de aprovação de pedidos
-- [ ] Adicionar Rate Limiting no Gateway com Redis
-- [ ] Configurar política de CORS
-
-### Fase 5 — Consistência e Produção (Longo Prazo)
-
-- [ ] Implementar Transactional Outbox Pattern (atomicidade Kafka + MongoDB)
-- [ ] Adicionar Schema Registry (Avro) para contratos de eventos Kafka
-- [ ] Implementar Idempotency Key nas operações de criação
-- [ ] Criar índices MongoDB (`customerId`, `status`, `tenantId`, `metadata.deleted`)
-- [ ] Criar Docker Compose unificado para todos os serviços
-- [ ] Preparar para deploy em Kubernetes (Helm Charts, ConfigMaps, Secrets)
+- [ ] GitHub Actions — build + testes em cada push
+- [ ] Dockerfile por serviço
+- [ ] Push de imagens para GitHub Container Registry
 
 ---
 
-*Documento gerado em: 2026-03-18*
-*Branch: feature/crud-v1*
+*Atualizado em: 2026-03-19 | Branch: feature/implementation-security*
