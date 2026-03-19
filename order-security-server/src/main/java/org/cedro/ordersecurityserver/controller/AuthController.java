@@ -26,8 +26,8 @@ public class AuthController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    @PostMapping("/token")
-    public ResponseEntity<TokenResponse> token(@RequestBody LoginRequest request) {
+    @PostMapping("/login")
+    public ResponseEntity<TokenResponse> login(@RequestBody LoginRequest request) {
         return appUserRepository.findByUsername(request.username())
                 .filter(user -> user.isActive() && passwordEncoder.matches(request.password(), user.getPassword()))
                 .map(user -> ResponseEntity.ok(new TokenResponse(tokenService.generateToken(user), 3600L)))

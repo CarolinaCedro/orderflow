@@ -1,13 +1,11 @@
 package com.cedro.orderrestservice;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
 class OrderRestServiceApplicationTests {
 
-	@Test
-	void contextLoads() {
-	}
-
+    @Test
+    void contextLoads() {
+        // library module — no Spring context required
+    }
 }
